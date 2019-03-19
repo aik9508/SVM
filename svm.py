@@ -1,113 +1,157 @@
 import numpy as np
 import random
 
-def svmTrain(X,Y,C,kernelFunction,tol=1e-3,max_passes=5):
-    # X,y: training data
-    # tol: numerical tolerance
-    # max_passes: max number of times to iterate over alphas without changing
-    # Data parameters
-    m = X.shape[0]    # number of samples
-    n = X.shape[1]    # dimension of a sample
-    
-    # Map 0 to -1
-    y = np.copy(Y)
-    y[Y==0] = -1
-    alphas = np.zeros(m) # Lagrange multipliers for solution
-    b = 0 # threshold for solution
-    E = np.zeros(m)
-    K = np.zeros((m,m))
-    for i in np.arange(m):
-        for j in np.arange(i,m):
-            K[i,j] = kernelFunction(X[i,:],X[j,:])
-            K[j,i] = K[i,j]
-#    print K
-    passes = 0
-    while passes < max_passes:
-        num_changed_alphas = 0
-        for i in range(m):
-            E[i] = b + np.sum(np.multiply(np.multiply(alphas,y),K[:,i])) - y[i]
-            if (y[i]*E[i]<-tol) and (alphas[i]<C) or (y[i]*E[i]>tol) and (alphas[i]>0):
-                j = random.randint(0,m-1)
-                while i == j:
-                    j = random.randint(0,m-1)
-#                print i+1,j+1
-                E[j] = b + np.sum(np.multiply(np.multiply(alphas,y),K[:,j])) - y[j]
-#                print E[i], E[j]
-                alpha_i_old = alphas[i];
-                alpha_j_old = alphas[j];
-                
-#                print '===',y[i],y[j],alphas[i],alphas[j],C
-                if y[i] == y[j]:
-                    L = max(0, alphas[j] + alphas[i] - C)
-                    H = min(C, alphas[j] + alphas[i])
-                else:
-                    L = max(0, alphas[j] - alphas[i])
-                    H = min(C, C + alphas[j] - alphas[i])
-#                print 'LH', L,H
-                if L == H:
-                    continue
+class SVC:
+    def __init__(self, C, kernelFunction, tol=1e-3):
+        self.C = C
+        self.kernelFunction = kernelFunction
+        self.tol = tol
 
-                eta = 2 * K[i,j] - K[i,i] - K[j,j]
-                if eta >= 0:
-                    continue
+    def fit(self,X,Y):
+        self.X = X
+        self.y = np.copy(Y)
+        self.y[Y==0] = -1
+        m = Y.size    # number of samples
+        self.alphas = np.zeros(m) # Lagrange multipliers
+        self.E = np.zeros(m)      # error cache
+        self.K = np.zeros((m,m))
+        #for i in np.arange(m):
+        #    for j in np.arange(i,m):
+        #        self.K[i,j] = self.kernelFunction(X[i,:],X[j,:])
+        #        self.K[j,i] = self.K[i,j]
+        self.K = self.kernelFunction(X,X) 
+        self.b = 0        # threshold
+        self.model = {}
 
-#                print 'eta', eta
-                alphas[j] = alphas[j] - y[j]*(E[i]-E[j])/eta
+        numChanged = 0
+        examineAll = True
+        while numChanged > 0 or examineAll:
+            numChanged = 0
+            if examineAll:
+                for i in np.arange(self.y.size):
+                    numChanged = numChanged + self.examineExample(i)
+            else:
+                activeSet = np.where(np.logical_and(abs(self.alphas) \
+                        > self.tol, abs(self.alphas-self.C) > self.tol))[0]
+                for i in activeSet:
+                    numChanged = numChanged + self.examineExample(i)
+            if examineAll:
+                examineAll = False
+            elif numChanged == 0:
+                examineAll = True
+        idx = self.alphas > 0
+        self.model['X'] = self.X[idx,:]
+        self.model['y'] = self.y[idx]
+        self.model['kernelFunction'] = self.kernelFunction
+        self.model['b'] = self.b
+        self.model['alphas'] = self.alphas[idx]
+        self.model['w'] = np.inner(self.alphas*self.y,np.transpose(self.X))
 
-                alphas[j] = min(H, alphas[j])
-                alphas[j] = max(L, alphas[j])
-
-                if abs(alphas[j] - alpha_j_old) < tol:
-                    alphas[j] = alpha_j_old
-                    continue
-
-                alphas[i] = alphas[i] + y[i]*y[j]*(alpha_j_old - alphas[j])
-#                print 'aa', alphas[i], alphas[j]
-                b1 = b - E[i] \
-                        - y[i] * (alphas[i] - alpha_i_old) * K[i,i] \
-                        - y[j] * (alphas[j] - alpha_j_old) * K[i,j] \
-
-                b2 = b - E[j] \
-                        - y[i] * (alphas[i] - alpha_i_old) * K[i,j] \
-                        - y[j] * (alphas[j] - alpha_j_old) * K[j,j] \
-
-                if 0 < alphas[i] and alphas[i] < C:
-                    b = b1
-                elif 0 < alphas[j] and alphas[j] < C:
-                    b = b2
-                else:
-                    b = (b1+b2)/2
-#                #print b
-                num_changed_alphas = num_changed_alphas + 1
-
-        if num_changed_alphas == 0:
-            passes = passes + 1;
+    def takeStep(self,i,j):
+        if i==j:
+            return 0
+        m = self.X.shape[0]
+        #Ki = np.zeros(m)
+        #Kj = np.zeros(m)
+        #for k in np.arange(m):
+        #    Ki[k] = self.kernelFunction(self.X[i,:],self.X[k,:])
+        #    Kj[k] = self.kernelFunction(self.X[j,:],self.X[k,:])
+        Ki = self.K[i,:]
+        Kj = self.K[j,:]
+        self.E[i] = self.b + np.sum(self.alphas*self.y*Ki) - self.y[i]
+        self.E[j] = self.b + np.sum(self.alphas*self.y*Kj) - self.y[j]
+        alpha_i_old = self.alphas[i];
+        alpha_j_old = self.alphas[j];
+        if self.y[i] == self.y[j]:
+            L = max(0, self.alphas[j] + self.alphas[i] - self.C)
+            H = min(self.C, self.alphas[j] + self.alphas[i])
         else:
-            passes = 0;
+            L = max(0, self.alphas[j] - self.alphas[i])
+            H = min(self.C, self.C + self.alphas[j] - self.alphas[i])
+        if L == H:
+            return 0
 
-    model = {}
-    idx = alphas > 0
-    model['X'] = X[idx][:]
-    model['y'] = y[idx]
-    model['kernelFunction'] = kernelFunction
-    model['b'] = b
-    model['alphas'] = alphas[idx]
-    model['w'] = np.inner(np.multiply(alphas,y),np.transpose(X))
-    return model
+        #Kij = self.kernelFunction(self.X[i,:],self.X[j,:])
+        #Kii = self.kernelFunction(self.X[i,:],self.X[i,:])
+        #Kjj = self.kernelFunction(self.X[j,:],self.X[j,:])
+        Kij = self.K[i,j]
+        Kii = self.K[i,i]
+        Kjj = self.K[j,j]
+        
+        # second order derivative of the cost function with respect to
+        # alphas[i] and alphas[j] along the constraint segment
+        eta = 2 * Kij - Kii - Kjj
+        if eta >= 0:
+            return 0
 
-def svmPredict(model,X):
-    X = np.array(X)
-    m = X.shape[0]
-    p = np.zeros(m)
-    pred = np.zeros(m)
-    for i in range(m):
-        prediction = 0
-        for j in range(model['X'].shape[0]):
-            prediction = prediction + \
-                    model['alphas'][j] * model['y'][j] * \
-                    model['kernelFunction'](X[i,:],model['X'][j,:])
-        p[i] = prediction + model['b']
-#        print p[i]
-    pred[p>=0] = 1
-    pred[p<0] = 0
-    return pred
+        # update Lagrange multipliers
+        self.alphas[j] = self.alphas[j] - self.y[j]*(self.E[i]-self.E[j])/eta
+        self.alphas[j] = min(H, self.alphas[j])
+        self.alphas[j] = max(L, self.alphas[j])
+        if abs(self.alphas[j] - alpha_j_old) < self.tol:
+            self.alphas[j] = alpha_j_old
+            return 0
+        self.alphas[i] = self.alphas[i] + self.y[i]*self.y[j]*(alpha_j_old - self.alphas[j])
+        
+        # update threshold to reflect change in Lagrange multipliers
+        b1 = self.b - self.E[i] \
+                - self.y[i] * (self.alphas[i] - alpha_i_old) * Kii \
+                - self.y[j] * (self.alphas[j] - alpha_j_old) * Kij
+        b2 = self.b - self.E[j] \
+                - self.y[i] * (self.alphas[i] - alpha_i_old) * Kij \
+                - self.y[j] * (self.alphas[j] - alpha_j_old) * Kjj
+        if 0 < self.alphas[i] and self.alphas[i] < self.C:
+            self.b = b1
+        elif 0 < self.alphas[j] and self.alphas[j] < self.C:
+            self.b = b2
+        else:
+            self.b = (b1+b2)/2
+        return 1
+    
+    def examineExample(self,i):
+        #m = self.y.size
+        #Ki = np.zeros(m)
+        #for k in np.arange(m):
+        #    Ki[k] = self.kernelFunction(self.X[i,:],self.X[k,:])
+        Ki = self.K[i,:]
+        self.E[i] = self.b + np.sum(self.alphas*self.y*Ki) - self.y[i]
+        if (self.y[i]*self.E[i]<-self.tol) and (self.alphas[i]<self.C) \
+                or (self.y[i]*self.E[i]>self.tol) and (self.alphas[i]>0):
+            activeSet = np.where(np.logical_and(abs(self.alphas) > self.tol, abs(self.alphas-self.C) > self.tol))[0]
+            m = activeSet.size
+            if m > 1:
+                if self.E[i] > 0:
+                    j = activeSet[np.argmin(self.E[activeSet])]
+                else:
+                    j = activeSet[np.argmax(self.E[activeSet])]
+                if self.takeStep(j,i) > 0:
+                    return 1
+            if m > 0:
+                r = random.randint(0,m-1)
+                activeSet = np.concatenate([activeSet[r:m],activeSet[0:r]])
+                for j in np.arange(m):
+                    if self.takeStep(activeSet[j],i) > 0:
+                        return 1
+            r = random.randint(0,self.y.size-1)
+            idx = np.concatenate([np.arange(r,self.y.size),np.arange(0,r)])
+            for j in idx:
+                if self.takeStep(j,i) > 0:
+                    return 1
+        return 0
+    
+    def predict(self,X):
+        max_samples = 3000
+        m = X.shape[0]
+        p = np.zeros(m)
+        pred = np.zeros(m)
+        p = np.dot(self.model['alphas']*self.model['y'], \
+                self.model['kernelFunction'](self.model['X'],X)) + self.model['b']
+        #for i in range(m):
+        #    prediction = 0
+        #    for j in range(self.model['X'].shape[0]):
+        #        prediction = prediction + \
+        #                self.model['alphas'][j] * self.model['y'][j] * \
+        #                self.model['kernelFunction'](X[i,:],self.model['X'][j,:])
+        #    p[i] = prediction + self.model['b']
+        pred[p>=0] = 1
+        return pred

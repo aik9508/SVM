@@ -1,10 +1,12 @@
 from scipy.io import loadmat
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 from gaussianKernels import gaussianKernel
 import multiclassSVM
 
-m = 1000 # number of samples used for training svm classifier
+ti = time.clock()
+m = 10000 # number of samples used for training svm classifier
 C = 1 
 sigma = 5 # standard deviation for the Gaussian Kernel
 digits =loadmat('digits.mat')
@@ -23,16 +25,16 @@ trainImages = (trainImages - np.mean(trainImages,axis=0))/255
 #plt.show()
 trainLabels = trainLabels[0,0:m]
 
-ntest = 50
+ntest = 40000
 testImages = testImages.reshape(n,-1)
 testImages = np.transpose(testImages)
 testImages = (testImages - np.mean(testImages,axis=0))/255
-testImages = testImages[0:ntest,:]
+testImages = testImages[-ntest:,:]
 testLabels = testLabels[0,:]
-testLabels = testLabels[0:ntest]
+testLabels = testLabels[-ntest:]
 
-Cs = [1,3,10,30]
-sigmas = [5,10,30]
+Cs = [1]
+sigmas = [5]
 
 max_accuracy = 0
 C_opt = Cs[0]
@@ -43,10 +45,12 @@ for sigma in sigmas:
         # training a multiclassSVM classifier
         model = multiclassSVM.mcsvmTrain(trainImages,trainLabels,C, \
                 kernelFunction)
+        tf1 = time.clock()
+        print 'time for training', tf1-ti, 's'
         # prediction
         pred = multiclassSVM.mcsvmPredict(model,testImages)
-        print max(pred),min(pred)
-        print max(testLabels),min(testLabels)
+        print 'time for predicting', time.clock()-tf1, 's'
+        print 'total elapsed time', time.clock()-ti, 's'
         accuracy = np.mean((pred==testLabels)*1.)
         if accuracy > max_accuracy:
             max_accuracy = accuracy

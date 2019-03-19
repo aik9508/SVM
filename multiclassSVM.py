@@ -1,7 +1,7 @@
 import numpy as np
 import svm
 
-def mcsvmTrain(X,Y,C,kernelFunction,tol=1e-3,max_passes=5):
+def mcsvmTrain(X,Y,C,kernelFunction,tol=1e-3):
     uniqueLabels = np.unique(Y)
     labelCounts = uniqueLabels.size
     #print 'multiclass SVM training'
@@ -20,13 +20,13 @@ def mcsvmTrain(X,Y,C,kernelFunction,tol=1e-3,max_passes=5):
             label1 = uniqueLabels[i]
             label2 = uniqueLabels[j]
             count+=1
-            #print '{0}. SVM classification: {1:d} and {2:d}'.format(count,label1,label2)
+            print '{0}. SVM classification: {1:d} and {2:d}'.format(count,label1,label2)
             idx = (Y==label1) + (Y==label2)
             subX1 = X[Y==label1,:]
             subX2 = X[Y==label2,:]
             subX = np.append(subX1,subX2,axis=0)
             subY = np.append(np.ones(subX1.shape[0]),np.zeros(subX2.shape[0]))
-            m = svm.svmTrain(subX,subY,C,kernelFunction,tol,max_passes)
+            m = svm.Svm(subX,subY,C,kernelFunction,tol).svmTrain()
             classifier={}
             classifier['m'] = m
             classifier['idx1'] = i
