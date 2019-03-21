@@ -1,6 +1,5 @@
 import numpy as np
 import random
-import time
 
 class SVC:
     def __init__(self, C, kernelFunction, tol=1e-3):
@@ -9,7 +8,6 @@ class SVC:
         self.tol = tol
 
     def fit(self,X,Y):
-        t1 = time.clock()
         self.X = X
         self.y = np.copy(Y)
         self.y[Y==0] = -1
@@ -25,7 +23,6 @@ class SVC:
 	self.computed = np.zeros(m)
         self.b = 0        # threshold
         self.model = {}
-        print time.clock()-t1
 
         numChanged = 0
         examineAll = True
@@ -56,22 +53,11 @@ class SVC:
         self.K = []
         self.E = []
         self.alphas = []
-        print time.clock()-t1
 
     def takeStep(self,i,j):
         if i==j:
             return 0
         m = self.X.shape[0]
-	#if self.computed[i] == 0:
-	#    for k in np.arange(m):
-	#	self.K[i,k] = self.kernelFunction(self.X[i,:],self.X[k,:])
-	#    self.computed[i] = 1
-	#if self.computed[j] == 0:
-	#    for k in np.arange(m):
-	#	self.K[j,k] = self.kernelFunction(self.X[i,:],self.X[k,:])
-	#    self.computed[j] = 1
-        #Ki = self.K[i,:]
-        #Kj = self.K[j,:]
 	self.E[i] = self.b + np.sum(self.alphas*self.y*self.K[i,:]) - self.y[i]
 	self.E[j] = self.b + np.sum(self.alphas*self.y*self.K[j,:]) - self.y[j]
         alpha_i_old = self.alphas[i];
