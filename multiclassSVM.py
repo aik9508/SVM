@@ -26,7 +26,8 @@ def mcsvmTrain(X,Y,C,kernelFunction,tol=1e-3):
             subX2 = X[Y==label2,:]
             subX = np.append(subX1,subX2,axis=0)
             subY = np.append(np.ones(subX1.shape[0]),np.zeros(subX2.shape[0]))
-            m = svm.Svm(subX,subY,C,kernelFunction,tol).svmTrain()
+	    m = svm.SVC(C,kernelFunction)
+	    m.fit(subX,subY)
             classifier={}
             classifier['m'] = m
             classifier['idx1'] = i
@@ -41,7 +42,7 @@ def mcsvmPredict(model,X):
     preds = np.zeros((m,model['labelCounts']))
     for i in np.arange(model['classifiers'].size):
         classifier = model['classifiers'][i]
-        prediction = svm.svmPredict(classifier['m'],X)
+        prediction = classifier['m'].predict(X)
         preds[prediction==1,classifier['idx1']] = \
                 preds[prediction==1,classifier['idx1']] + 1
         preds[prediction==0,classifier['idx2']] = \

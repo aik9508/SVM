@@ -1,4 +1,6 @@
 *.pyc
 *.txt
 test*
-svmcopy.py
+report/
+compare.py
+*.mat

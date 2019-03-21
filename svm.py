@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import time
 
 class SVC:
     def __init__(self, C, kernelFunction, tol=1e-3):
@@ -8,6 +9,7 @@ class SVC:
         self.tol = tol
 
     def fit(self,X,Y):
+        t1 = time.clock()
         self.X = X
         self.y = np.copy(Y)
         self.y[Y==0] = -1
@@ -15,13 +17,15 @@ class SVC:
         self.alphas = np.zeros(m) # Lagrange multipliers
         self.E = np.zeros(m)      # error cache
         self.K = np.zeros((m,m))
-        #for i in np.arange(m):
-        #    for j in np.arange(i,m):
-        #        self.K[i,j] = self.kernelFunction(X[i,:],X[j,:])
-        #        self.K[j,i] = self.K[i,j]
-        self.K = self.kernelFunction(X,X) 
+        for i in np.arange(m):
+            for j in np.arange(i,m):
+                self.K[i,j] = self.kernelFunction(X[i,:],X[j,:])
+                self.K[j,i] = self.K[i,j]
+        #self.K = self.kernelFunction(X,X) 
+	self.computed = np.zeros(m)
         self.b = 0        # threshold
         self.model = {}
+        print time.clock()-t1
 
         numChanged = 0
         examineAll = True
@@ -46,20 +50,30 @@ class SVC:
         self.model['b'] = self.b
         self.model['alphas'] = self.alphas[idx]
         self.model['w'] = np.inner(self.alphas*self.y,np.transpose(self.X))
+	#print np.mean(self.computed)
+        self.X = []
+        self.y = []
+        self.K = []
+        self.E = []
+        self.alphas = []
+        print time.clock()-t1
 
     def takeStep(self,i,j):
         if i==j:
             return 0
         m = self.X.shape[0]
-        #Ki = np.zeros(m)
-        #Kj = np.zeros(m)
-        #for k in np.arange(m):
-        #    Ki[k] = self.kernelFunction(self.X[i,:],self.X[k,:])
-        #    Kj[k] = self.kernelFunction(self.X[j,:],self.X[k,:])
-        Ki = self.K[i,:]
-        Kj = self.K[j,:]
-        self.E[i] = self.b + np.sum(self.alphas*self.y*Ki) - self.y[i]
-        self.E[j] = self.b + np.sum(self.alphas*self.y*Kj) - self.y[j]
+	#if self.computed[i] == 0:
+	#    for k in np.arange(m):
+	#	self.K[i,k] = self.kernelFunction(self.X[i,:],self.X[k,:])
+	#    self.computed[i] = 1
+	#if self.computed[j] == 0:
+	#    for k in np.arange(m):
+	#	self.K[j,k] = self.kernelFunction(self.X[i,:],self.X[k,:])
+	#    self.computed[j] = 1
+        #Ki = self.K[i,:]
+        #Kj = self.K[j,:]
+	self.E[i] = self.b + np.sum(self.alphas*self.y*self.K[i,:]) - self.y[i]
+	self.E[j] = self.b + np.sum(self.alphas*self.y*self.K[j,:]) - self.y[j]
         alpha_i_old = self.alphas[i];
         alpha_j_old = self.alphas[j];
         if self.y[i] == self.y[j]:
@@ -144,14 +158,14 @@ class SVC:
         m = X.shape[0]
         p = np.zeros(m)
         pred = np.zeros(m)
-        p = np.dot(self.model['alphas']*self.model['y'], \
-                self.model['kernelFunction'](self.model['X'],X)) + self.model['b']
-        #for i in range(m):
-        #    prediction = 0
-        #    for j in range(self.model['X'].shape[0]):
-        #        prediction = prediction + \
-        #                self.model['alphas'][j] * self.model['y'][j] * \
-        #                self.model['kernelFunction'](X[i,:],self.model['X'][j,:])
-        #    p[i] = prediction + self.model['b']
+        #p = np.dot(self.model['alphas']*self.model['y'], \
+        #        self.model['kernelFunction'](self.model['X'],X)) + self.model['b']
+        for i in range(m):
+            prediction = 0
+            for j in range(self.model['X'].shape[0]):
+                prediction = prediction + \
+                        self.model['alphas'][j] * self.model['y'][j] * \
+                        self.model['kernelFunction'](X[i,:],self.model['X'][j,:])
+            p[i] = prediction + self.model['b']
         pred[p>=0] = 1
         return pred
